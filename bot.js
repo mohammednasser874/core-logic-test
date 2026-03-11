@@ -11,8 +11,19 @@ const SERVER_VERSION = process.env.SERVER_VERSION || '1.20.1';
 const AUTH_TYPE = process.env.AUTH_TYPE || 'offline'; // 'microsoft', 'mojang', or 'offline'
 const MAX_RUNTIME_MINUTES = 350; // 5 hours 50 minutes (350 minutes)
 
-// AuthMe configuration
-const AUTHME_PASSWORD = process.env.AUTHME_PASSWORD || '';
+// AuthMe configuration - Auto-generate random password
+function generateAuthMePassword() {
+    // Generate a random secure password (12 chars, mixed case + numbers)
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+    let password = '';
+    for (let i = 0; i < 12; i++) {
+        password += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return password;
+}
+
+// Generate password once and store it (persists during this session)
+const AUTHME_PASSWORD = generateAuthMePassword();
 let isAuthMeAuthenticated = false;
 let authAttempts = 0;
 const MAX_AUTH_ATTEMPTS = 3;
@@ -548,7 +559,7 @@ console.log(`Bot Username: ${BOT_USERNAME}`);
 console.log(`Server: ${SERVER_HOST}:${SERVER_PORT}`);
 console.log(`Version: ${SERVER_VERSION}`);
 console.log(`Max Runtime: ${MAX_RUNTIME_MINUTES} minutes (5h 50m)`);
-console.log(`AuthMe Support: ${AUTHME_PASSWORD ? 'Enabled' : 'Disabled'}`);
+console.log(`AuthMe Support: Enabled (Auto-Password: ${AUTHME_PASSWORD})`);
 console.log('==========================================');
 
 // Create bot

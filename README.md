@@ -30,7 +30,6 @@ An automated Minecraft AFK bot using [Mineflayer](https://github.com/PrismarineJ
 | `SERVER_VERSION` | No | `1.20.1` | Minecraft version |
 | `AUTH_TYPE` | No | `offline` | Authentication: `offline`, `microsoft`, or `mojang` |
 | `BOT_PASSWORD` | No | - | Password (for online servers) |
-| `AUTHME_PASSWORD` | No | - | AuthMe plugin password (see below) |
 
 3. **Start the Bot**
 
@@ -58,30 +57,35 @@ If you mention the bot's username in chat, it can respond to commands:
 
 ## AuthMe Plugin Support
 
-If the server uses the [AuthMe](https://github.com/AuthMe/AuthMeReloaded) plugin, the bot can automatically handle authentication:
-
-### Setup
-
-1. Add the `AUTHME_PASSWORD` secret to your GitHub repository
-2. The bot will automatically detect and respond to:
-   - `/register` prompts (for new accounts)
-   - `/login` prompts (for existing accounts)
+If the server uses the [AuthMe](https://github.com/AuthMe/AuthMeReloaded) plugin, the bot automatically handles authentication with a **randomly generated password**:
 
 ### How it works
 
-- When you join, AuthMe typically sends a message like "Please /login" or "Please /register"
-- The bot detects these messages and automatically sends the appropriate command
-- It waits 2-4 seconds (randomized) before responding to appear more natural
-- After successful authentication, anti-AFK routines start automatically
-- If authentication fails 3 times, the bot reconnects and tries again
+1. When the bot joins, AuthMe typically sends "Please /login" or "Please /register"
+2. The bot automatically generates a random 12-character password
+3. It detects the prompts and sends the appropriate command:
+   - **First time**: `/register <random_password> <random_password>`
+   - **After that**: `/login <same_random_password>`
+4. It waits 2-4 seconds (randomized) before responding to appear more natural
+5. After successful authentication, anti-AFK routines start automatically
+6. If authentication fails 3 times, the bot reconnects and tries again
 
 ### AuthMe Features
 
-- **Auto-Register**: Detects register prompts and sends `/register <password> <password>`
-- **Auto-Login**: Detects login prompts and sends `/login <password>`
+- **Auto-Generated Password**: 12-character random password (e.g., `aB3xK9pL2mN4`)
+- **Auto-Register**: Detects register prompts and registers automatically
+- **Auto-Login**: Detects login prompts and logs in with the same password
 - **Success Detection**: Recognizes successful authentication messages
-- **Error Handling**: Handles wrong password, already registered, etc.
+- **Error Handling**: Handles already registered, wrong password, etc.
 - **Anti-AFK Delay**: Won't move until fully authenticated
+
+### Note on Password Persistence
+
+Since GitHub Actions runners don't have persistent storage, **each new run generates a new random password**. This means:
+- If the bot reconnects within the same 6-hour run → uses the same password ✅
+- If a new GitHub Actions run starts → generates a new password ⚠️
+
+For servers where you want the same account across multiple days, you should manually register the bot once, then add the username/password to the server's AuthMe database directly.
 
 ## Runtime Behavior
 

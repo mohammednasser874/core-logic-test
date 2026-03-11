@@ -43,7 +43,7 @@ jobs:
           echo "Bot Username: ${{ env.BOT_USERNAME }}"
           echo "Server: ${{ env.SERVER_HOST }}"
           echo "Version: ${{ env.SERVER_VERSION }}"
-          echo "AuthMe: ${{ secrets.AUTHME_PASSWORD != '' && 'Enabled' || 'Disabled' }}"
+          echo "AuthMe: Auto-generate password enabled"
           echo "Max Runtime: 350 minutes (5h 50m)"
           echo "=========================================="
         env:
@@ -53,7 +53,6 @@ jobs:
           SERVER_VERSION: ${{ secrets.SERVER_VERSION || '1.20.1' }}
           AUTH_TYPE: ${{ secrets.AUTH_TYPE || 'offline' }}
           BOT_PASSWORD: ${{ secrets.BOT_PASSWORD }}
-          AUTHME_PASSWORD: ${{ secrets.AUTHME_PASSWORD }}
 
       - name: Run AFK Bot
         run: npm start
@@ -64,7 +63,6 @@ jobs:
           SERVER_VERSION: ${{ secrets.SERVER_VERSION || '1.20.1' }}
           AUTH_TYPE: ${{ secrets.AUTH_TYPE || 'offline' }}
           BOT_PASSWORD: ${{ secrets.BOT_PASSWORD }}
-          AUTHME_PASSWORD: ${{ secrets.AUTHME_PASSWORD }}
           NODE_ENV: production
 
       - name: Bot completed - preparing for restart
