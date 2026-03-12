@@ -6,7 +6,7 @@ An advanced Minecraft AFK bot specifically optimized for **FalixNodes** servers.
 
 ### Core Features
 - **Bot Name**: `COOLBOI` (fixed)
-- **Target Server**: `ahsmpw.falixsrv.me:29724`
+- **Target Server**: `Your Target server`
 - **Auto-Register/Login**: Automatically handles AuthMe `/register` and `/login`
 - **Persistent Password**: Password is saved and reused between sessions (via GitHub Cache)
 
