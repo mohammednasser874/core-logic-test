@@ -2,28 +2,54 @@ const mineflayer = require('mineflayer');
 const pathfinder = require('mineflayer-pathfinder').pathfinder;
 const Movements = require('mineflayer-pathfinder').Movements;
 const { GoalNear, GoalBlock } = require('mineflayer-pathfinder').goals;
+const fs = require('fs');
+const path = require('path');
 
 // Configuration from environment variables
-const BOT_USERNAME = process.env.BOT_USERNAME || 'AFKBot_' + Math.floor(Math.random() * 1000);
-const SERVER_HOST = process.env.SERVER_HOST || 'localhost';
-const SERVER_PORT = parseInt(process.env.SERVER_PORT) || 25565;
+const BOT_USERNAME = process.env.BOT_USERNAME || 'COOLBOI';
+const SERVER_HOST = process.env.SERVER_HOST || 'ahsmpw.falixsrv.me';
+const SERVER_PORT = parseInt(process.env.SERVER_PORT) || 29724;
 const SERVER_VERSION = process.env.SERVER_VERSION || '1.20.1';
-const AUTH_TYPE = process.env.AUTH_TYPE || 'offline'; // 'microsoft', 'mojang', or 'offline'
-const MAX_RUNTIME_MINUTES = 350; // 5 hours 50 minutes (350 minutes)
+const AUTH_TYPE = process.env.AUTH_TYPE || 'offline';
+const MAX_RUNTIME_MINUTES = 340; // 5 hours 40 minutes (340 minutes)
 
-// AuthMe configuration - Auto-generate random password
-function generateAuthMePassword() {
-    // Generate a random secure password (12 chars, mixed case + numbers)
+// Password file path for persistence
+const PASSWORD_FILE = path.join(__dirname, '.bot_password');
+
+// AuthMe configuration - Generate or load persistent password
+function getAuthMePassword() {
+    // Check if password file exists
+    if (fs.existsSync(PASSWORD_FILE)) {
+        try {
+            const savedPassword = fs.readFileSync(PASSWORD_FILE, 'utf8').trim();
+            if (savedPassword) {
+                console.log(`[${getTimestamp()}] Loaded saved password from file`);
+                return savedPassword;
+            }
+        } catch (e) {
+            console.error(`[${getTimestamp()}] Error reading password file:`, e.message);
+        }
+    }
+
+    // Generate new random password
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
     let password = '';
-    for (let i = 0; i < 12; i++) {
+    for (let i = 0; i < 16; i++) {
         password += chars.charAt(Math.floor(Math.random() * chars.length));
     }
+
+    // Save password to file for persistence
+    try {
+        fs.writeFileSync(PASSWORD_FILE, password);
+        console.log(`[${getTimestamp()}] Generated and saved new password`);
+    } catch (e) {
+        console.error(`[${getTimestamp()}] Error saving password file:`, e.message);
+    }
+
     return password;
 }
 
-// Generate password once and store it (persists during this session)
-const AUTHME_PASSWORD = generateAuthMePassword();
+const AUTHME_PASSWORD = getAuthMePassword();
 let isAuthMeAuthenticated = false;
 let authAttempts = 0;
 const MAX_AUTH_ATTEMPTS = 3;
@@ -128,6 +154,9 @@ function createBot() {
     bot.on('message', (jsonMsg) => {
         const message = jsonMsg.toString();
         console.log(`[${getTimestamp()}] Chat: ${message}`);
+
+        // FalixNodes specific messages (AFK check, stop timer)
+        const handledByFalix = handleFalixMessages(bot, message);
 
         // AuthMe Detection and Auto-Response
         if (!isAuthMeAuthenticated && AUTHME_PASSWORD) {
@@ -473,6 +502,89 @@ function performCrouchToggle(bot) {
     }, 1000 + Math.random() * 2000);
 
     console.log(`[${getTimestamp()}] Anti-AFK: Crouch toggle`);
+}
+
+// FalixNodes specific message patterns
+const FALIX_PATTERNS = {
+    // "Are you here?" AFK check
+    afkCheck: [
+        /are you here\?/i,
+        /are you still there\?/i,
+        /are you afk\?/i,
+        /afk check/i,
+        /respond to confirm/i,
+        /type.*to confirm/i,
+        /confirm you are here/i
+    ],
+    // Stop server timer
+    stopTimer: [
+        /server will stop in/i,
+        /server stopping in/i,
+        /stop.*timer/i,
+        /shutting down in/i,
+        /restart.*in/i,
+        /server.*restart.*in/i,
+        /countdown.*stop/i,
+        /auto.*stop/i
+    ],
+    // Server is stopping now
+    stoppingNow: [
+        /server is stopping/i,
+        /server stopping now/i,
+        /shutting down now/i,
+        /server closed/i
+    ]
+};
+
+// Handle FalixNodes specific messages
+function handleFalixMessages(bot, message) {
+    // Check for AFK check messages
+    if (FALIX_PATTERNS.afkCheck.some(pattern => pattern.test(message))) {
+        console.log(`[${getTimestamp()}] Falix: AFK check detected! Responding...`);
+        // Respond with random message to show we're not AFK
+        const responses = ['yes', 'yeah', 'here', 'present', 'yep', 'yes im here', 'not afk'];
+        const response = responses[Math.floor(Math.random() * responses.length)];
+
+        setTimeout(() => {
+            bot.chat(response);
+            console.log(`[${getTimestamp()}] Falix: Responded to AFK check`);
+        }, 1000 + Math.random() * 2000);
+        return true;
+    }
+
+    // Check for stop timer - LEAVE AND REJOIN to cancel it
+    if (FALIX_PATTERNS.stopTimer.some(pattern => pattern.test(message))) {
+        console.log(`[${getTimestamp()}] Falix: STOP TIMER DETECTED! Leaving and rejoining to cancel...`);
+
+        // Leave and rejoin sequence
+        setTimeout(() => {
+            bot.chat('Disconnecting to cancel stop timer...');
+            console.log(`[${getTimestamp()}] Falix: Disconnecting now...`);
+
+            // Disconnect
+            bot.quit();
+
+            // Reconnect after 3 seconds
+            setTimeout(() => {
+                console.log(`[${getTimestamp()}] Falix: Reconnecting to cancel timer...`);
+                createBot();
+            }, 3000);
+        }, 1000);
+        return true;
+    }
+
+    // Check if server is stopping now
+    if (FALIX_PATTERNS.stoppingNow.some(pattern => pattern.test(message))) {
+        console.log(`[${getTimestamp()}] Falix: Server is stopping! Will reconnect when back up...`);
+        // Wait longer before reconnecting since server is actually stopping
+        setTimeout(() => {
+            console.log(`[${getTimestamp()}] Falix: Attempting to reconnect after shutdown...`);
+            createBot();
+        }, 30000); // Wait 30 seconds for server to restart
+        return true;
+    }
+
+    return false;
 }
 
 // Handle chat commands

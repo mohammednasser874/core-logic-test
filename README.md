@@ -1,112 +1,201 @@
-# Minecraft AFK Bot
+# FalixNodes AFK Bot (COOLBOI)
 
-An automated Minecraft AFK bot using [Mineflayer](https://github.com/PrismarineJS/mineflayer) that runs on GitHub Actions with intelligent anti-AFK protection.
+An advanced Minecraft AFK bot specifically optimized for **FalixNodes** servers. Runs on GitHub Actions with powerful anti-AFK protection, automatic AuthMe authentication, and FalixNodes-specific features.
 
 ## Features
 
-- **Smart Anti-AFK**: Random movements every minute to avoid being kicked
-  - Arm swinging (15-45 second intervals)
-  - Head rotation (20-60 second intervals)
-  - Small walks/jumps (30-90 second intervals)
-  - Continuous subtle movements
-- **AuthMe Auto-Login**: Automatically handles `/login` and `/register` commands
-- **Auto-Reconnect**: Automatically reconnects if disconnected
-- **Auto-Restart**: Stops at 5h 50m and automatically triggers a new run
-- **Remote Commands**: Respond to chat commands for status checks
-- **Health Monitoring**: Tracks health and food levels
-- **Pathfinding**: Uses mineflayer-pathfinder for intelligent movement
+### Core Features
+- **Bot Name**: `COOLBOI` (fixed)
+- **Target Server**: `ahsmpw.falixsrv.me:29724`
+- **Auto-Register/Login**: Automatically handles AuthMe `/register` and `/login`
+- **Persistent Password**: Password is saved and reused between sessions (via GitHub Cache)
 
-## Setup
+### FalixNodes Specific Features
+- **"Are You Here?" Detection**: Automatically responds to FalixNodes AFK checks
+- **Stop Timer Cancel**: Detects server stop timers and leaves/rejoins to cancel them
+- **FalixNodes Optimized**: Anti-AFK designed specifically for FalixNodes kick patterns
 
-1. **Fork this repository**
+### Anti-AFK Protection
+- Random arm swinging every 15-45 seconds
+- Head rotation every 20-60 seconds
+- Small movements every 30-90 seconds
+- Random jumping every 60-180 seconds
+- Continuous subtle head movements
+- Pathfinding to random nearby positions
 
-2. **Configure Secrets** (Settings → Secrets and variables → Actions):
+### Auto Management
+- **Auto-Reconnect**: Reconnects if disconnected or kicked
+- **Auto-Restart**: Stops at exactly 5 hours 40 minutes, then triggers a new run
+- **Runtime Limit**: 340 minutes (5h 40m) to stay within FalixNodes limits
 
-| Secret | Required | Default | Description |
-|--------|----------|---------|-------------|
-| `SERVER_HOST` | Yes | - | Minecraft server IP or hostname |
-| `SERVER_PORT` | No | `25565` | Server port |
-| `BOT_USERNAME` | No | `AFKBot_GH` | Bot's username |
-| `SERVER_VERSION` | No | `1.20.1` | Minecraft version |
-| `AUTH_TYPE` | No | `offline` | Authentication: `offline`, `microsoft`, or `mojang` |
-| `BOT_PASSWORD` | No | - | Password (for online servers) |
+## GitHub Actions Workflow
 
-3. **Start the Bot**
+### How It Works
 
-   Go to Actions → Minecraft AFK Bot → Run workflow
+1. **Scheduled Runs**: The workflow runs automatically every 5 hours
+2. **Auto-Restart**: When a run completes, it automatically triggers a new one after 5 minutes
+3. **Password Persistence**: The bot's password is cached between runs using GitHub Actions Cache
+4. **Timeout Protection**: Hard timeout at 5h 40m to ensure clean restarts
 
-## Anti-AFK Actions
+### Manual Trigger
 
-The bot performs these actions at random intervals:
+You can manually trigger the bot:
+1. Go to **Actions** tab
+2. Select **"FalixNodes AFK Bot"**
+3. Click **"Run workflow"**
 
-- **Arm Swinging**: Simulates clicking/using items
-- **Head Turning**: Looks around randomly
-- **Walking**: Small forward/back/side movements
-- **Jumping**: Occasional jumps (sometimes while sprinting)
-- **Sneaking**: Brief crouch toggles
-- **Pathfinding**: Walks to nearby random positions
+## Bot Behavior
 
-## Chat Commands
+### First Join (Registration)
+1. Bot joins as `COOLBOI`
+2. AuthMe prompts to `/register`
+3. Bot generates a random 16-character password
+4. Sends: `/register <password> <password>`
+5. Password is saved to cache for future logins
 
-If you mention the bot's username in chat, it can respond to commands:
+### Subsequent Joins (Login)
+1. Bot joins as `COOLBOI`
+2. AuthMe prompts to `/login`
+3. Bot loads the saved password from cache
+4. Sends: `/login <password>`
 
-- `@AFKBot status` - Shows runtime, health, food, auth status, and position
-- `@AFKBot pos` - Shows current coordinates
-- `@AFKBot auth` - Shows AuthMe authentication status
-- `@AFKBot stop` - Gracefully shuts down the bot
+### "Are You Here?" Response
+When FalixNodes sends "Are you here?" or similar AFK check:
+- Bot randomly responds with: `yes`, `yeah`, `here`, `present`, `yep`, `yes im here`, or `not afk`
+- Response is delayed 1-3 seconds to appear natural
 
-## AuthMe Plugin Support
+### Stop Timer Detection
+When server announces a stop timer:
+1. Bot immediately sends a chat message
+2. Disconnects from server
+3. Waits 3 seconds
+4. Reconnects (this cancels the stop timer on FalixNodes)
 
-If the server uses the [AuthMe](https://github.com/AuthMe/AuthMeReloaded) plugin, the bot automatically handles authentication with a **randomly generated password**:
+## File Structure
 
-### How it works
+```
+bot-code/
+├── bot.js              # Main bot code with all features
+├── package.json        # Dependencies
+├── .github/
+│   └── workflows/
+│       └── afk-bot.yml # GitHub Actions workflow
+└── .bot_password       # Cached password (auto-generated)
+```
 
-1. When the bot joins, AuthMe typically sends "Please /login" or "Please /register"
-2. The bot automatically generates a random 12-character password
-3. It detects the prompts and sends the appropriate command:
-   - **First time**: `/register <random_password> <random_password>`
-   - **After that**: `/login <same_random_password>`
-4. It waits 2-4 seconds (randomized) before responding to appear more natural
-5. After successful authentication, anti-AFK routines start automatically
-6. If authentication fails 3 times, the bot reconnects and tries again
+## Configuration
 
-### AuthMe Features
+The bot is pre-configured with these settings:
 
-- **Auto-Generated Password**: 12-character random password (e.g., `aB3xK9pL2mN4`)
-- **Auto-Register**: Detects register prompts and registers automatically
-- **Auto-Login**: Detects login prompts and logs in with the same password
-- **Success Detection**: Recognizes successful authentication messages
-- **Error Handling**: Handles already registered, wrong password, etc.
-- **Anti-AFK Delay**: Won't move until fully authenticated
+```javascript
+const BOT_USERNAME = 'COOLBOI';
+const SERVER_HOST = 'ahsmpw.falixsrv.me';
+const SERVER_PORT = 29724;
+const SERVER_VERSION = '1.20.1';
+const AUTH_TYPE = 'offline';
+const MAX_RUNTIME_MINUTES = 340; // 5h 40m
+```
 
-### Note on Password Persistence
+## Workflow Schedule
 
-Since GitHub Actions runners don't have persistent storage, **each new run generates a new random password**. This means:
-- If the bot reconnects within the same 6-hour run → uses the same password ✅
-- If a new GitHub Actions run starts → generates a new password ⚠️
+```yaml
+# Runs every 5 hours
+cron: '0 */5 * * *'
 
-For servers where you want the same account across multiple days, you should manually register the bot once, then add the username/password to the server's AuthMe database directly.
+# Also runs at 45 minutes past every 6th hour (redundancy)
+cron: '45 */6 * * *'
+```
 
-## Runtime Behavior
+## Runtime Cycle
 
-- **Max Runtime**: 5 hours 50 minutes (350 minutes)
-- **Auto-Restart**: Automatically triggers a new workflow run when time is up
-- **Continuous Operation**: With GitHub Actions scheduling, the bot runs 24/7
-- **Logs**: Available in the Actions tab for each run
+```
+Run Start
+    |
+    v
+Join Server
+    |
+    v
+AuthMe Login/Register
+    |
+    v
+Anti-AFK Routines Active
+    |
+    v
+Watch for:
+  - "Are you here?" -> Respond
+  - Stop Timer -> Leave/Rejoin
+  - Disconnect -> Reconnect
+    |
+    v
+5h 40m reached
+    |
+    v
+Disconnect
+    |
+    v
+Wait 5 minutes
+    |
+    v
+Trigger new run
+    |
+    v
+Repeat
+```
+
+## Monitoring
+
+View bot activity:
+1. Go to **Actions** tab in GitHub
+2. Click on the latest **"FalixNodes AFK Bot"** run
+3. View the logs in real-time
+
+Log output shows:
+- Connection status
+- AuthMe authentication steps
+- Anti-AFK actions performed
+- "Are you here?" responses
+- Stop timer detections
+- Runtime progress
+
+## Troubleshooting
+
+### Bot not joining
+- Check if the server IP/port is correct
+- Verify the server is online
+- Check Actions logs for errors
+
+### AuthMe issues
+- Password is cached; if registration failed, clear the cache
+- Manual reset: Go to Actions → Caches → Delete `bot-password-*`
+
+### Stopped working
+- Check if server has whitelist
+- Verify bot wasn't banned
+- Check if server requires a different Minecraft version
 
 ## Requirements
 
-- Minecraft server (vanilla, Spigot, Paper, etc.)
-- For cracked/offline servers: use `AUTH_TYPE: offline`
-- For premium servers: use `AUTH_TYPE: microsoft` with valid credentials
+- GitHub repository (public or private)
+- GitHub Actions enabled (free tier works)
+- No additional secrets needed (all config is hardcoded)
+
+## Notes
+
+- **GitHub Actions free tier**: 2,000 minutes/month (enough for ~5-6 runs of this bot)
+- The bot is designed for continuous operation but respects GitHub's limits
+- Password persistence uses GitHub Actions Cache (valid for 7 days)
 
 ## Disclaimer
 
-**Use at your own risk!** Some servers prohibit AFK bots. Make sure to:
-- Check server rules before using
-- Use on servers you own or have permission to use
-- Not use for malicious purposes (spam, griefing, etc.)
+**Use at your own risk!**
+- Only use on servers you own or have permission to use
+- Respect server rules and terms of service
+- Not responsible for any bans or penalties
 
 ## License
 
 MIT
+
+## Credits
+
+Built with [Mineflayer](https://github.com/PrismarineJS/mineflayer) - Minecraft bot framework for Node.js

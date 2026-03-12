@@ -1,19 +1,18 @@
 {
-  "name": "minecraft-afk-bot",
-  "version": "1.0.0",
-  "description": "AFK Bot for Minecraft servers with anti-AFK protection",
+  "name": "falixnodes-afk-bot",
+  "version": "2.0.0",
+  "description": "AFK Bot for FalixNodes Minecraft servers with advanced anti-AFK protection",
   "main": "bot.js",
   "scripts": {
     "start": "node bot.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "coolboi": "BOT_USERNAME=COOLBOI node bot.js"
   },
-  "keywords": ["minecraft", "afk", "bot", "mineflayer"],
+  "keywords": ["minecraft", "afk", "bot", "mineflayer", "falixnodes"],
   "author": "",
   "license": "MIT",
   "dependencies": {
     "mineflayer": "^4.20.0",
-    "mineflayer-auto-auth": "^1.0.0",
     "mineflayer-pathfinder": "^2.4.5",
-    "mineflayer-pvp": "^1.3.2"
+    "minecraft-data": "^3.65.0"
   }
 }
