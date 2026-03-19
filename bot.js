@@ -126,7 +126,11 @@ function createBot() {
         reconnectAttempts = 0;
 
         const mcData = require('minecraft-data')(bot.version);
-        bot.pathfinder.setMovements(new Movements(bot, mcData));
+        const movements = new Movements(bot, mcData);
+        movements.canDig          = false; // never break blocks
+        movements.canPlace        = false; // never place blocks
+        movements.allow1by1towers = false; // never pillar up
+        bot.pathfinder.setMovements(movements);
 
         setTimeout(() => {
             if (!antiAfkStarted) {
