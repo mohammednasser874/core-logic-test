@@ -47,8 +47,9 @@ jobs:
         BOT_USERNAME: COOLBOI
         SERVER_HOST: pathborn.falix.me
         SERVER_PORT: 24233
-        SERVER_VERSION: 1.20.1
+        SERVER_VERSION: 1.21.1
         AUTH_TYPE: offline
+        BOT_PASSWORD: ${{ secrets.BOT_PASSWORD }}
       run: |
         echo "=========================================="
         echo "       Starting COOLBOI AFK Bot          "
