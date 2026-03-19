@@ -243,64 +243,213 @@ function createBot() {
     }
 }
 
-// ── Anti-AFK routines ─────────────────────────────────────────────
+// ── Meteor-style continuous roam movement ─────────────────────────
+//
+//  Runs every 100ms (like a game tick) and checks 3 things ahead:
+//    HOLE  — ground block ahead is non-solid → turn to new direction
+//    WALL  — body-level block ahead is solid  → try jump, else turn
+//    STUCK — position hasn't changed in 2s    → force new direction
+//
+//  The bot roams continuously, only pausing briefly after a direction
+//  change. This mimics Meteor client's "roam" anti-AFK behaviour.
+//
 function startAntiAfk(bot) {
-    console.log('[AntiAFK] All routines started.');
+    console.log('[AntiAFK] Meteor-style roam started.');
 
+    // ── Non-movement routines ─────────────────────────────────────
+    // Subtle head drift
     setInterval(() => {
         if (!bot.entity) return;
         bot.look(
-            bot.entity.yaw   + (Math.random() - 0.5) * 0.3,
-            bot.entity.pitch + (Math.random() - 0.5) * 0.2,
+            bot.entity.yaw   + (Math.random() - 0.5) * 0.25,
+            bot.entity.pitch + (Math.random() - 0.5) * 0.15,
             true
         );
     }, 3000);
 
+    // Arm swing
     setInterval(() => {
         if (!bot.entity) return;
         bot.swingArm();
-        console.log('[AntiAFK] Arm swing.');
-    }, randMs(15000, 45000));
+    }, randMs(12000, 35000));
 
-    setInterval(() => {
-        if (!bot.entity) return;
-        bot.look(Math.random() * Math.PI * 2, (Math.random() - 0.5) * Math.PI, false);
-        console.log('[AntiAFK] Head turn.');
-    }, randMs(20000, 60000));
-
-    setInterval(() => {
-        if (!bot.entity) return;
-        const dirs = ['forward', 'back', 'left', 'right'];
-        const dir  = dirs[Math.floor(Math.random() * dirs.length)];
-        bot.setControlState(dir, true);
-        setTimeout(() => bot.setControlState(dir, false), 400 + Math.random() * 800);
-        console.log(`[AntiAFK] Nudge ${dir}.`);
-    }, randMs(30000, 90000));
-
-    setInterval(() => {
-        if (!bot.entity) return;
-        bot.setControlState('jump', true);
-        setTimeout(() => bot.setControlState('jump', false), 250);
-        console.log('[AntiAFK] Jump.');
-    }, randMs(60000, 180000));
-
+    // Crouch toggle
     setInterval(() => {
         if (!bot.entity) return;
         bot.setControlState('sneak', true);
-        setTimeout(() => bot.setControlState('sneak', false), 1000 + Math.random() * 1500);
-        console.log('[AntiAFK] Crouch toggle.');
-    }, randMs(90000, 210000));
+        setTimeout(() => bot.setControlState('sneak', false), 800 + Math.random() * 1200);
+    }, randMs(60000, 150000));
 
+    // ── Block helpers ─────────────────────────────────────────────
+    const NON_SOLID = new Set([
+        'air','cave_air','void_air','water','lava','seagrass','tall_seagrass',
+        'grass','tall_grass','fern','large_fern','dead_bush','snow',
+        'poppy','dandelion','cornflower','oxeye_daisy','azure_bluet',
+        'rose_bush','peony','sunflower','lilac','vine','kelp','kelp_plant',
+        'bubble_column','torch','wall_torch','lantern','chain',
+        'tripwire','string','cobweb','sugar_cane','bamboo',
+        'wheat','carrots','potatoes','beetroots',
+    ]);
+
+    function solid(block) {
+        return block && !NON_SOLID.has(block.name);
+    }
+
+    function getBlock(x, y, z) {
+        try { return bot.blockAt({ x: Math.floor(x), y: Math.floor(y), z: Math.floor(z) }); }
+        catch { return null; }
+    }
+
+    // ── Roam state ────────────────────────────────────────────────
+    let roamYaw        = Math.random() * Math.PI * 2;
+    let lastPos        = null;
+    let lastMoveTime   = Date.now();
+    let turning        = false;   // cooldown flag while changing direction
+    let jumpCooldown   = false;
+
+    function setYaw(yaw) {
+        roamYaw = yaw;
+        try { bot.look(yaw, 0, false); } catch {}
+    }
+
+    function turnRandom(bias = 0) {
+        // bias: 0 = fully random, positive = prefer right, negative = prefer left
+        const angle = (Math.PI * 0.5) + Math.random() * (Math.PI * 0.6);
+        const dir   = bias !== 0 ? Math.sign(bias) : (Math.random() < 0.5 ? 1 : -1);
+        setYaw(roamYaw + angle * dir);
+    }
+
+    function doJump() {
+        if (jumpCooldown) return;
+        jumpCooldown = true;
+        bot.setControlState('jump', true);
+        setTimeout(() => {
+            bot.setControlState('jump', false);
+            setTimeout(() => { jumpCooldown = false; }, 600);
+        }, 250);
+    }
+
+    // ── Main tick (100ms) ─────────────────────────────────────────
     setInterval(() => {
-        if (!bot.entity || !bot.pathfinder) return;
-        const x = bot.entity.position.x + (Math.random() - 0.5) * 4;
-        const z = bot.entity.position.z + (Math.random() - 0.5) * 4;
-        bot.pathfinder.goto(new GoalNear(x, bot.entity.position.y, z, 1)).catch(() => {
+        if (!bot.entity || turning) return;
+
+        const pos = bot.entity.position;
+        const dx  = -Math.sin(roamYaw);
+        const dz  =  Math.cos(roamYaw);
+
+        // Look-ahead distances
+        const near = 0.85;   // immediate next step
+        const far  = 1.4;    // one full block ahead
+
+        // -- HOLE CHECK --
+        // Block below foot level at near and far ahead
+        const groundNear = getBlock(pos.x + dx * near, pos.y - 0.1, pos.z + dz * near);
+        const groundFar  = getBlock(pos.x + dx * far,  pos.y - 0.1, pos.z + dz * far);
+
+        if (!solid(groundNear) || !solid(groundFar)) {
+            console.log('[Roam] Hole detected — changing direction.');
+            bot.setControlState('forward', false);
+            turning = true;
+            turnRandom();
+            setTimeout(() => {
+                turning = false;
+                bot.setControlState('forward', true);
+            }, 400);
+            return;
+        }
+
+        // -- WALL / OBSTACLE CHECK --
+        // Block at foot level (step up check) and body level ahead
+        const stepBlock  = getBlock(pos.x + dx * near, pos.y + 0.1,  pos.z + dz * near); // 1 block up
+        const bodyBlock  = getBlock(pos.x + dx * near, pos.y + 0.6,  pos.z + dz * near); // mid body
+        const headBlock  = getBlock(pos.x + dx * near, pos.y + 1.55, pos.z + dz * near); // head
+
+        if (solid(stepBlock)) {
+            // There's a block at foot level — check if it's only 1 high (jumpable)
+            if (!solid(bodyBlock) && !solid(headBlock)) {
+                // 1-block step up → jump over it like Meteor does
+                doJump();
+                console.log('[Roam] 1-block step — jumping.');
+            } else {
+                // 2+ blocks tall — turn away
+                console.log('[Roam] Wall/build detected — changing direction.');
+                bot.setControlState('forward', false);
+                turning = true;
+                turnRandom();
+                setTimeout(() => {
+                    turning = false;
+                    bot.setControlState('forward', true);
+                }, 400);
+            }
+            return;
+        }
+
+        // Also catch wide walls at body/head level even with clear feet
+        if (solid(bodyBlock) || solid(headBlock)) {
+            console.log('[Roam] Upper obstacle detected — changing direction.');
+            bot.setControlState('forward', false);
+            turning = true;
+            turnRandom();
+            setTimeout(() => {
+                turning = false;
+                bot.setControlState('forward', true);
+            }, 400);
+            return;
+        }
+
+        // -- STUCK CHECK --
+        // If the bot hasn't moved more than 0.05 blocks in 2 seconds it's stuck
+        if (lastPos) {
+            const moved = Math.abs(pos.x - lastPos.x) + Math.abs(pos.z - lastPos.z);
+            if (moved < 0.05 && Date.now() - lastMoveTime > 2000) {
+                console.log('[Roam] Stuck — forcing new direction.');
+                bot.setControlState('forward', false);
+                turning = true;
+                turnRandom();
+                // Try a jump too in case we're wedged
+                doJump();
+                lastMoveTime = Date.now();
+                setTimeout(() => {
+                    turning = false;
+                    bot.setControlState('forward', true);
+                }, 500);
+                lastPos = pos.clone();
+                return;
+            }
+        }
+
+        // Update last position every 2s
+        if (!lastPos || Date.now() - lastMoveTime > 2000) {
+            lastPos      = pos.clone();
+            lastMoveTime = Date.now();
+        }
+
+        // All clear — keep walking forward
+        bot.setControlState('forward', true);
+
+    }, 100);
+
+    // Occasionally pick a fresh random direction even with no obstacle
+    // so the bot doesn't just pace back and forth on the same line
+    setInterval(() => {
+        if (!bot.entity || turning) return;
+        console.log('[Roam] Random direction change.');
+        bot.setControlState('forward', false);
+        turning = true;
+        setYaw(Math.random() * Math.PI * 2);
+        setTimeout(() => {
+            turning = false;
             bot.setControlState('forward', true);
-            setTimeout(() => bot.setControlState('forward', false), 800);
-        });
-        console.log('[AntiAFK] Walking to nearby position.');
-    }, 62000);
+        }, 300);
+    }, randMs(15000, 35000));
+
+    // Start moving after a short delay
+    setTimeout(() => {
+        if (!bot.entity) return;
+        setYaw(Math.random() * Math.PI * 2);
+        bot.setControlState('forward', true);
+        console.log('[Roam] Initial walk started.');
+    }, 2000);
 }
 
 // ── Runtime monitor ───────────────────────────────────────────────
