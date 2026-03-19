@@ -2,9 +2,7 @@ name: FalixNodes AFK Bot
 
 on:
   schedule:
-    # Run every 5 hours and 45 minutes (345 minutes) to allow overlap
     - cron: '0 */5 * * *'
-    # Also run every 45 minutes past the hour for redundancy
     - cron: '45 */6 * * *'
   workflow_dispatch:
     inputs:
@@ -20,7 +18,7 @@ concurrency:
 jobs:
   run-bot:
     runs-on: ubuntu-latest
-    timeout-minutes: 345  # 5 hours 45 minutes (auto-termination before 6h)
+    timeout-minutes: 345
 
     steps:
     - name: Checkout repository
@@ -44,45 +42,30 @@ jobs:
           bot-password-
 
     - name: Run AFK Bot
-      timeout-minutes: 340  # 5 hours 40 minutes exactly
+      timeout-minutes: 340
       env:
         BOT_USERNAME: COOLBOI
-        SERVER_HOST: ahsmpw.falixsrv.me
-        SERVER_PORT: 29724
+        SERVER_HOST: pathborn.falix.me
+        SERVER_PORT: 24233
         SERVER_VERSION: 1.20.1
         AUTH_TYPE: offline
       run: |
         echo "=========================================="
         echo "       Starting COOLBOI AFK Bot          "
         echo "=========================================="
-        echo "Server: ahsmpw.falixsrv.me:29724"
+        echo "Server: pathborn.falix.me:24233"
         echo "Bot Name: COOLBOI"
         echo "Max Runtime: 5 hours 40 minutes"
-        echo "Features:"
-        echo "  - AuthMe Auto Register/Login"
-        echo "  - Anti-AFK (FalixNodes optimized)"
-        echo "  - 'Are you here?' Detection"
-        echo "  - Stop Timer Leave/Rejoin"
-        echo "  - Persistent Password"
         echo "=========================================="
 
-        # Create a background process that will kill the bot after 5h 40m
         (sleep $((5*3600 + 40*60)) && echo "TIMEOUT: 5h 40m reached. Stopping..." && pkill -f "node bot.js" || true) &
         TIMEOUT_PID=$!
 
-        # Run the bot
-        node bot.js &
-        BOT_PID=$!
-
-        # Wait for either the bot or timeout
-        wait $BOT_PID
+        node bot.js
         EXIT_CODE=$?
 
-        # Kill timeout process if still running
         kill $TIMEOUT_PID 2>/dev/null || true
-
         echo "Bot exited with code: $EXIT_CODE"
-        echo "Restart will happen automatically..."
 
     - name: Save bot password for next run
       uses: actions/cache@v4
@@ -103,19 +86,17 @@ jobs:
           .bot_password
         retention-days: 7
 
-  # Auto-restart job - triggers a new run when the previous one completes
   restart-bot:
     runs-on: ubuntu-latest
     needs: run-bot
     if: always()
-
     steps:
     - name: Trigger new workflow run
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
         echo "Previous run completed. Scheduling restart in 5 minutes..."
-        sleep 300  # Wait 5 minutes before restarting
+        sleep 300
         curl -X POST \
           -H "Authorization: token $GITHUB_TOKEN" \
           -H "Accept: application/vnd.github.v3+json" \
