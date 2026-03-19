@@ -244,36 +244,11 @@ function createBot() {
 }
 
 // ── Meteor-style continuous roam movement ─────────────────────────
-//
-//  Runs every 100ms (like a game tick) and checks 3 things ahead:
-//    HOLE  — ground block ahead is non-solid → turn to new direction
-//    WALL  — body-level block ahead is solid  → try jump, else turn
-//    STUCK — position hasn't changed in 2s    → force new direction
-//
-//  The bot roams continuously, only pausing briefly after a direction
-//  change. This mimics Meteor client's "roam" anti-AFK behaviour.
-//
 function startAntiAfk(bot) {
     console.log('[AntiAFK] Meteor-style roam started.');
 
     // ── Non-movement routines ─────────────────────────────────────
-    // Subtle head drift
-    setInterval(() => {
-        if (!bot.entity) return;
-        bot.look(
-            bot.entity.yaw   + (Math.random() - 0.5) * 0.25,
-            bot.entity.pitch + (Math.random() - 0.5) * 0.15,
-            true
-        );
-    }, 3000);
-
-    // Arm swing
-    setInterval(() => {
-        if (!bot.entity) return;
-        bot.swingArm();
-    }, randMs(12000, 35000));
-
-    // Crouch toggle
+    setInterval(() => { if (bot.entity) bot.swingArm(); }, randMs(12000, 35000));
     setInterval(() => {
         if (!bot.entity) return;
         bot.setControlState('sneak', true);
@@ -290,34 +265,18 @@ function startAntiAfk(bot) {
         'tripwire','string','cobweb','sugar_cane','bamboo',
         'wheat','carrots','potatoes','beetroots',
     ]);
-
-    function solid(block) {
-        return block && !NON_SOLID.has(block.name);
-    }
-
+    function solid(block) { return block && !NON_SOLID.has(block.name); }
     function getBlock(x, y, z) {
         try { return bot.blockAt({ x: Math.floor(x), y: Math.floor(y), z: Math.floor(z) }); }
         catch { return null; }
     }
 
     // ── Roam state ────────────────────────────────────────────────
-    let roamYaw        = Math.random() * Math.PI * 2;
-    let lastPos        = null;
-    let lastMoveTime   = Date.now();
-    let turning        = false;   // cooldown flag while changing direction
-    let jumpCooldown   = false;
-
-    function setYaw(yaw) {
-        roamYaw = yaw;
-        try { bot.look(yaw, 0, false); } catch {}
-    }
-
-    function turnRandom(bias = 0) {
-        // bias: 0 = fully random, positive = prefer right, negative = prefer left
-        const angle = (Math.PI * 0.5) + Math.random() * (Math.PI * 0.6);
-        const dir   = bias !== 0 ? Math.sign(bias) : (Math.random() < 0.5 ? 1 : -1);
-        setYaw(roamYaw + angle * dir);
-    }
+    let roamYaw      = Math.random() * Math.PI * 2;
+    let paused       = false;
+    let jumpCooldown = false;
+    let lastPos      = null;
+    let lastPosTime  = Date.now();
 
     function doJump() {
         if (jumpCooldown) return;
@@ -325,131 +284,108 @@ function startAntiAfk(bot) {
         bot.setControlState('jump', true);
         setTimeout(() => {
             bot.setControlState('jump', false);
-            setTimeout(() => { jumpCooldown = false; }, 600);
-        }, 250);
+            setTimeout(() => { jumpCooldown = false; }, 500);
+        }, 200);
     }
 
-    // ── Main tick (100ms) ─────────────────────────────────────────
+    // Pick a new random direction and face it, then resume walking
+    function changeDirection(reason) {
+        if (paused) return;
+        paused = true;
+        console.log(`[Roam] ${reason} — changing direction.`);
+
+        // Stop all movement keys
+        ['forward','back','left','right','jump'].forEach(k => bot.setControlState(k, false));
+
+        // New random yaw offset 90–180 degrees from current
+        const turn = (Math.PI * 0.5) + Math.random() * (Math.PI * 0.6);
+        roamYaw = roamYaw + turn * (Math.random() < 0.5 ? 1 : -1);
+
+        // Use physics.yaw to actually change the direction the server registers
+        bot.entity.yaw = roamYaw;
+
+        setTimeout(() => {
+            paused = false;
+            bot.setControlState('forward', true);
+        }, 350);
+    }
+
+    // ── Main tick ─────────────────────────────────────────────────
     setInterval(() => {
-        if (!bot.entity || turning) return;
+        if (!bot.entity || paused) return;
 
         const pos = bot.entity.position;
         const dx  = -Math.sin(roamYaw);
         const dz  =  Math.cos(roamYaw);
+        const near = 0.85;
+        const far  = 1.3;
 
-        // Look-ahead distances
-        const near = 0.85;   // immediate next step
-        const far  = 1.4;    // one full block ahead
-
-        // -- HOLE CHECK --
-        // Block below foot level at near and far ahead
-        const groundNear = getBlock(pos.x + dx * near, pos.y - 0.1, pos.z + dz * near);
-        const groundFar  = getBlock(pos.x + dx * far,  pos.y - 0.1, pos.z + dz * far);
-
-        if (!solid(groundNear) || !solid(groundFar)) {
-            console.log('[Roam] Hole detected — changing direction.');
-            bot.setControlState('forward', false);
-            turning = true;
-            turnRandom();
-            setTimeout(() => {
-                turning = false;
-                bot.setControlState('forward', true);
-            }, 400);
+        // HOLE — ground missing ahead
+        const gNear = getBlock(pos.x + dx * near, pos.y - 0.1, pos.z + dz * near);
+        const gFar  = getBlock(pos.x + dx * far,  pos.y - 0.1, pos.z + dz * far);
+        if (!solid(gNear) || !solid(gFar)) {
+            changeDirection('Hole ahead');
             return;
         }
 
-        // -- WALL / OBSTACLE CHECK --
-        // Block at foot level (step up check) and body level ahead
-        const stepBlock  = getBlock(pos.x + dx * near, pos.y + 0.1,  pos.z + dz * near); // 1 block up
-        const bodyBlock  = getBlock(pos.x + dx * near, pos.y + 0.6,  pos.z + dz * near); // mid body
-        const headBlock  = getBlock(pos.x + dx * near, pos.y + 1.55, pos.z + dz * near); // head
+        // WALL — check 3 heights ahead
+        const foot = getBlock(pos.x + dx * near, pos.y + 0.1,  pos.z + dz * near);
+        const body = getBlock(pos.x + dx * near, pos.y + 0.8,  pos.z + dz * near);
+        const head = getBlock(pos.x + dx * near, pos.y + 1.6,  pos.z + dz * near);
 
-        if (solid(stepBlock)) {
-            // There's a block at foot level — check if it's only 1 high (jumpable)
-            if (!solid(bodyBlock) && !solid(headBlock)) {
-                // 1-block step up → jump over it like Meteor does
+        if (solid(foot)) {
+            if (!solid(body) && !solid(head)) {
+                // Only 1 block high — jump over it
                 doJump();
                 console.log('[Roam] 1-block step — jumping.');
             } else {
-                // 2+ blocks tall — turn away
-                console.log('[Roam] Wall/build detected — changing direction.');
-                bot.setControlState('forward', false);
-                turning = true;
-                turnRandom();
-                setTimeout(() => {
-                    turning = false;
-                    bot.setControlState('forward', true);
-                }, 400);
+                changeDirection('Wall/build ahead');
             }
             return;
         }
-
-        // Also catch wide walls at body/head level even with clear feet
-        if (solid(bodyBlock) || solid(headBlock)) {
-            console.log('[Roam] Upper obstacle detected — changing direction.');
-            bot.setControlState('forward', false);
-            turning = true;
-            turnRandom();
-            setTimeout(() => {
-                turning = false;
-                bot.setControlState('forward', true);
-            }, 400);
+        if (solid(body) || solid(head)) {
+            changeDirection('Upper obstacle ahead');
             return;
         }
 
-        // -- STUCK CHECK --
-        // If the bot hasn't moved more than 0.05 blocks in 2 seconds it's stuck
+        // STUCK — hasn't moved in 2.5s
         if (lastPos) {
-            const moved = Math.abs(pos.x - lastPos.x) + Math.abs(pos.z - lastPos.z);
-            if (moved < 0.05 && Date.now() - lastMoveTime > 2000) {
-                console.log('[Roam] Stuck — forcing new direction.');
-                bot.setControlState('forward', false);
-                turning = true;
-                turnRandom();
-                // Try a jump too in case we're wedged
+            const dist = Math.hypot(pos.x - lastPos.x, pos.z - lastPos.z);
+            if (dist < 0.08 && Date.now() - lastPosTime > 2500) {
                 doJump();
-                lastMoveTime = Date.now();
-                setTimeout(() => {
-                    turning = false;
-                    bot.setControlState('forward', true);
-                }, 500);
+                changeDirection('Stuck');
                 lastPos = pos.clone();
+                lastPosTime = Date.now();
                 return;
             }
         }
-
-        // Update last position every 2s
-        if (!lastPos || Date.now() - lastMoveTime > 2000) {
-            lastPos      = pos.clone();
-            lastMoveTime = Date.now();
+        if (!lastPos || Date.now() - lastPosTime > 1000) {
+            lastPos = pos.clone();
+            lastPosTime = Date.now();
         }
 
-        // All clear — keep walking forward
+        // All clear — sync entity yaw so forward key moves the right way
+        bot.entity.yaw = roamYaw;
         bot.setControlState('forward', true);
 
     }, 100);
 
-    // Occasionally pick a fresh random direction even with no obstacle
-    // so the bot doesn't just pace back and forth on the same line
+    // Random direction change every 15–30s so it roams around, not back-and-forth
     setInterval(() => {
-        if (!bot.entity || turning) return;
-        console.log('[Roam] Random direction change.');
-        bot.setControlState('forward', false);
-        turning = true;
-        setYaw(Math.random() * Math.PI * 2);
-        setTimeout(() => {
-            turning = false;
-            bot.setControlState('forward', true);
-        }, 300);
-    }, randMs(15000, 35000));
+        if (!bot.entity || paused) return;
+        roamYaw = Math.random() * Math.PI * 2;
+        bot.entity.yaw = roamYaw;
+        console.log('[Roam] Periodic direction shuffle.');
+    }, randMs(15000, 30000));
 
-    // Start moving after a short delay
+    // Kick off after 1.5s
     setTimeout(() => {
         if (!bot.entity) return;
-        setYaw(Math.random() * Math.PI * 2);
+        roamYaw = Math.random() * Math.PI * 2;
+        bot.entity.yaw = roamYaw;
         bot.setControlState('forward', true);
-        console.log('[Roam] Initial walk started.');
-    }, 2000);
+        console.log('[Roam] Walking started.');
+    }, 1500);
 }
 
 // ── Runtime monitor ───────────────────────────────────────────────
