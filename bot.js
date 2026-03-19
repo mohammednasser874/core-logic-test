@@ -275,7 +275,7 @@ function createBot() {
 function startAntiAfk(bot) {
     console.log('[AntiAFK] Pathfinder roam started.');
 
-    const { GoalXZ } = require('mineflayer-pathfinder').goals;
+    const { GoalNear } = require('mineflayer-pathfinder').goals;
 
     // ── Non-movement routines ─────────────────────────────────────
     setInterval(() => { if (bot.entity) bot.swingArm(); }, randMs(12000, 35000));
@@ -287,38 +287,62 @@ function startAntiAfk(bot) {
     }, randMs(60000, 150000));
 
     // ── Roam loop ─────────────────────────────────────────────────
-    // Record spawn position so the bot stays nearby
-    let spawnX = null;
-    let spawnZ = null;
+    let spawnX  = null;
+    let spawnZ  = null;
     let roaming = false;
+    let failStreak = 0; // how many goals in a row failed
 
-    function pickRandomGoal() {
-        const radius = 15;
+    function pickGoal() {
+        // Tight radius — spawn is a small skyblock island with void edges
+        // Never go more than 6 blocks from spawn center to stay safe
+        const radius = 6;
         const angle  = Math.random() * Math.PI * 2;
-        const dist   = 5 + Math.random() * radius;
-        const tx = Math.floor(spawnX + Math.cos(angle) * dist);
-        const tz = Math.floor(spawnZ + Math.sin(angle) * dist);
-        return new GoalXZ(tx, tz);
+        const dist   = 1 + Math.random() * radius;
+        const tx = spawnX + Math.cos(angle) * dist;
+        const tz = spawnZ + Math.sin(angle) * dist;
+        const ty = bot.entity.position.y;
+        return new GoalNear(tx, ty, tz, 1);
     }
 
     async function roamStep() {
         if (!bot.entity || roaming) return;
         roaming = true;
 
-        const goal = pickRandomGoal();
-        console.log(`[Roam] Walking to ${goal.x}, ${goal.z}`);
+        const goal = pickGoal();
+        console.log(`[Roam] Walking to ~${Math.floor(goal.x)}, ${Math.floor(goal.z)}`);
 
         try {
             await bot.pathfinder.goto(goal);
             console.log('[Roam] Reached goal.');
+            failStreak = 0;
         } catch (e) {
-            console.log(`[Roam] Could not reach goal — trying another.`);
+            failStreak++;
+            const reason = e.message || String(e);
+
+            // Pathfinder throws when it needs to dig but can't — treat as blocked
+            if (/dig|break|block|no path/i.test(reason)) {
+                console.log(`[Roam] Path blocked (${reason}) — picking new direction.`);
+            } else {
+                console.log(`[Roam] Could not reach goal (${reason}) — trying another.`);
+            }
+
+            bot.pathfinder.stop();
+
+            // After 4 fails nudge manually to get unstuck
+            if (failStreak >= 4) {
+                console.log('[Roam] Nudging to get unstuck.');
+                const dirs = ['forward', 'back', 'left', 'right'];
+                const dir  = dirs[Math.floor(Math.random() * dirs.length)];
+                bot.setControlState(dir, true);
+                await new Promise(r => setTimeout(r, 700));
+                bot.setControlState(dir, false);
+                failStreak = 0;
+            }
         }
 
         roaming = false;
-
-        // Pause 2–5s between walks to look natural
-        setTimeout(roamStep, randMs(2000, 5000));
+        // Pause 1–3s between walks
+        setTimeout(roamStep, randMs(1000, 3000));
     }
 
     // Start after spawn settles
