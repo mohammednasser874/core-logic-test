@@ -1,6 +1,6 @@
 # AFK Bot (COOLBOI) 
 
-An advanced Minecraft AFK bot specifically optimized for **FalixNodes** servers. Runs on GitHub Actions with powerful anti-AFK protection, automatic AuthMe authentication, and FalixNodes-specific features.
+An advanced Minecraft AFK bot specifically optimized for servers. Runs on GitHub Actions with powerful anti-AFK protection, automatic AuthMe authentication
 
 ## Features
 
