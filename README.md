@@ -5,7 +5,7 @@ An advanced Minecraft AFK bot specifically optimized for servers. Runs on GitHub
 ## Features
 
 ### Core Features
-- **Bot Name**: `COOLBOI` (fixed)
+- **Bot Name**: `COOLBOI`
 - **Target Server**: `Your Target server`
 - **Auto-Register/Login**: Automatically handles AuthMe `/register` and `/login`
 - **Persistent Password**: You have to make a github secrete for the bot password which will get generated when the bot joins a server (1st time only)
