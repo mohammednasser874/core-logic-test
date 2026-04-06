@@ -36,11 +36,14 @@ jobs:
         sleep 3
         warp-cli --accept-tos registration new
         sleep 2
+        # Use WARP in proxy mode only — gives a SOCKS5 proxy on localhost:40000
+        # instead of routing all traffic through Cloudflare's IP range
+        warp-cli --accept-tos mode proxy
         warp-cli --accept-tos connect
         sleep 5
         warp-cli --accept-tos status
-        echo "IPv4 after WARP:"
-        curl -4s https://ifconfig.me || echo "No IPv4"
+        echo "IP without WARP (actual outbound):"
+        curl -4s https://ifconfig.me
     - name: Restore bot password
       uses: actions/cache@v4
       with:
@@ -57,7 +60,6 @@ jobs:
         SERVER_VERSION: 1.21.1
         AUTH_TYPE: offline
         BOT_PASSWORD: ${{ secrets.BOT_PASSWORD }}
-        # Force Node.js to prefer IPv4 over IPv6
         NODE_OPTIONS: "--dns-result-order=ipv4first"
       run: |
         echo "=========================================="
