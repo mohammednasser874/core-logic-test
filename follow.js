@@ -29,7 +29,7 @@ module.exports = function attachFollow(bot, {
 
     // ── Auto-eat ──────────────────────────────────────────────────
     try {
-        const autoEat = require('mineflayer-auto-eat').plugin;
+        const autoEat = require('mineflayer-auto-eat').loader;
         bot.loadPlugin(autoEat);
         bot.once('spawn', () => {
             bot.autoEat.options = {
@@ -37,7 +37,6 @@ module.exports = function attachFollow(bot, {
                 startAt:     16,
                 bannedFood:  [],
                 eatingTimeout: 3000,
-                ignoreInventoryCheck: false,
             };
             bot.autoEat.enable();
             console.log('[Follow] Auto-eat enabled.');
