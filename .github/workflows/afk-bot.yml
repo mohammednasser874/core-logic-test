@@ -39,8 +39,7 @@ jobs:
         sleep 2
         warp-cli --accept-tos connect
         sleep 5
-        echo "WARP status:"
-        warp-cli status
+        warp-cli --accept-tos status
         echo "IP after WARP:"
         curl -s https://ifconfig.me
     - name: Restore bot password
