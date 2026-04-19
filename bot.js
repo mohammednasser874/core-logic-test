@@ -8,7 +8,7 @@ const attachFollow = require('./follow');  // ← follow module
 
 // ── Config ────────────────────────────────────────────────────────
 const BOT_USERNAME    = process.env.BOT_USERNAME || 'COOLBOI';
-const SERVER_HOST     = process.env.SERVER_HOST  || 'play.voidsmp.space';  // ← updated
+const SERVER_HOST     = process.env.SERVER_HOST  || 'midnightsmp.axyron.cloud';  // ← updated
 const SERVER_PORT     = parseInt(process.env.SERVER_PORT) || 25565;
 const SERVER_VERSION  = process.env.SERVER_VERSION || '1.21.1';
 const AUTH_TYPE       = process.env.AUTH_TYPE    || 'offline';
